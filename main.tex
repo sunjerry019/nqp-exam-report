@@ -1,0 +1,116 @@
+\documentclass[]{article} % twoside
+\usepackage[utf8]{inputenc}
+\usepackage[british]{babel}
+\usepackage{libertine}
+\usepackage[dvipsnames]{xcolor}
+\usepackage[a4paper]{geometry}
+\usepackage{pdfpages}
+\usepackage{parskip}
+\usepackage{amsmath, amsthm, amssymb, commath, mathtools}
+\usepackage{cancel}
+\usepackage{physics}
+\usepackage{nicefrac}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{upgreek}
+\usepackage{tabu}
+\usepackage[style=numeric,sorting=none,sortcites=true,backend=biber,natbib=true,language=british,datamodel=software]{biblatex} % sortlocale=de_DE, language=auto, autolang=other
+\usepackage{software-biblatex}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\graphicspath{{./plots/}{./images/}}
+\usepackage{wrapfig}
+\definecolor{capblue}{HTML}{00709B}
+\usepackage[margin=1cm,font={small},labelfont={color=capblue}]{caption}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{minted}
+\usepackage{appendix}
+\usepackage{icomma}
+\usepackage{multirow}
+\usepackage{multicol}
+\usepackage[bottom]{footmisc}
+\usepackage[separate-uncertainty=true]{siunitx}
+\usepackage{tcolorbox}
+\usepackage{mhchem}
+
+\usepackage{bbold} % for writing identity
+
+\usepackage[autostyle, english = british]{csquotes} 
+\DeclareQuoteStyle[british]{english}% verified
+  {\textquotedblleft}
+  [\textquotedblleft]
+  {\textquotedblright}
+  [0.05em]
+  {\textquoteleft}
+  {\textquoteright} % https://tex.stackexchange.com/q/137210
+\MakeOuterQuote{"}
+\renewcommand{\ttdefault}{cmtt}
+
+\usepackage{hyperref}
+\usepackage{bookmark}
+% https://tex.stackexchange.com/a/33701
+\makeatletter
+    \newcommand{\nonum}[0]{%
+        \let\@oldseccntformat\@seccntformat %
+        \renewcommand\@seccntformat[1]{}%
+        }
+    \newcommand{\resnum}[0]{\let\@seccntformat\@oldseccntformat}
+    
+% for array streching
+\renewcommand*\env@matrix[1][\arraystretch]{%
+  \edef\arraystretch{#1}%
+  \hskip -\arraycolsep
+  \let\@ifnextchar\new@ifnextchar
+  \array{*\c@MaxMatrixCols c}}
+    
+\makeatother
+
+\newcommand*{\todo}[1]{\textcolor{red}{TODO: #1}}
+\newcommand*{\matrixx}[1]{\underline{\underline{#1}}}
+\newcommand*{\vectorx}[1]{\underline{#1}}
+\newcommand*{\operatorx}[1]{\hat{#1}}
+\newcommand*{\inpycode}[1]{\mintinline{python}{#1}}
+\newcommand*{\intermcode}[1]{\mintinline{bash}{#1}}
+\newcommand*{\unity}[0]{\mathbb{1}}
+\newcommand*{\natzahl}[0]{\mathbb{N}}
+
+
+
+\usepackage{chngcntr}
+\counterwithin{figure}{section}
+
+\hypersetup{
+	pdftitle={NQP Final Programming Exercise},
+	pdfauthor={Simon Krumm and Yudong Sun},
+	bookmarksnumbered=true,
+	bookmarksopen=true,
+	bookmarksopenlevel=2,
+	pdfstartview=Fit,
+	pdfpagemode=UseOutlines,
+	colorlinks=true,
+	linkcolor=capblue,
+	filecolor=magenta,      
+	urlcolor=blue,
+    citecolor=capblue,
+    pdfpagelayout=TwoPageRight
+}
+\urlstyle{same}
+
+\title{NQP Final Programming Exercise\\-- Exact Diagonalisation --\\{\large [Summer Semester 2023]}}
+\author{Simon Krumm and Yudong Sun}
+\date{\today}
+
+\addbibresource{sources.bib}
+
+\begin{document}
+
+\maketitle
+\input{introduction.tex}
+\input{implementations.tex}
+\clearpage
+\input{content.tex}
+\clearpage
+\input{conclusion.tex}
+\printbibliography
+\end{document}

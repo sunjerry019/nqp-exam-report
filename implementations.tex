@@ -1,0 +1,133 @@
+\clearpage
+\section{Overall Implementation and Code Structure}
+    \subsection{Scaffolding}
+        The scaffolding of the code is provided by the file \texttt{QM.py}, which contains the following classes:
+        \vspace{-0.5\baselineskip}
+        \begin{multicols}{2}
+            \begin{itemize}
+                \item \texttt{State}
+                \item \texttt{HBFockState < State}
+                \item \texttt{Operator}
+                \item \texttt{HBFockOperator < Operator}
+            \end{itemize}
+        \end{multicols}
+        \vspace{-\baselineskip}
+        where \texttt{A < B} means that \texttt{A} derives from \texttt{B}, or in other words, \texttt{B} is the parent class of \texttt{A}. \texttt{HBFock} comes from \textit{Hardcore Boson Fock}.
+        
+        Since operators may be represented by either dense or sparse matrices, this structure allows us to do data-structure agnostic diagonlisaton of the hamiltonians without needing to change large swaths of code. One may choose the representation by passing the parameter \inpycode{sparse = True | False} into the constructor of \inpycode{(HBFock)Operator}. 
+        
+        Since we are only using states to calculate matrix elements, the time/efficiency benefit of using sparse matrices to represent states are minimal. Therefore, to reduce complexity, all states are represented by dense $(1 \times M)$ or $(M \times 1)$ \texttt{numpy} arrays. 
+
+        All arithmetic operations have also been overloaded such that an expression such as the following becomes possible:
+        \begin{align}
+            \bra{\varphi} \hat{b}^\dagger \ket{\varphi} \hspace{1cm}\equiv\hspace{1cm} 
+            \text{\inpycode{phi.dagger() @ b.dagger() @ phi}}
+        \end{align}
+        where \texttt{phi} is a \inpycode{State} and \texttt{b} is an \inpycode{Operator}.
+        
+        Since \texttt{State} also internally stores whether it represents a ket- or a bra-state, the overloaded operations allow us to quickly check if a specific operation is allowed. For example, $\hat{b} \ket{\varphi} \rightarrow \ket{\varphi'}$ and $\bra{\varphi}\hat{b} \rightarrow \bra{\varphi''}$ are allowed but not $\hat{b} \bra{\varphi} \rightarrow~?$. This specifies the expected behaviour of the code and helps us to prevent certain types of errors in the calculations later on that, for example, involve wrong shapes. As a bonus, we will also know the exact datatype of the resulting object after matrix multiplication in normally ambiguous situations:
+        \begin{align}
+            \braket{\varphi}{\psi} &= (\text{\inpycode{State}})\text{ \inpycode{@} }(\text{\inpycode{State}}) = \text{Number} \\
+            \dyad{\varphi}{\psi} &= (\text{\texttt{State}})\text{ \texttt{@} }(\text{\inpycode{State}}) = \text{\inpycode{Operator}}
+        \end{align}
+        The classes \inpycode{HBFockState} and \inpycode{HBFockOperator} are then a specific implementation of \inpycode{State} and \inpycode{Operator} respectively for the problem at hand. They contain checks for shape requirements and stores additional parameters relevant for the calculation. Furthermore,  \inpycode{HBFockOperator} provides a method for expanding single site ($\tilde{L} = 0$, "only center site") operators to the many-body ($\tilde{L} = L)$ Hilbert space. There, we make use of the fact that the tensor product of identity matrices is simply a larger identity matrix ($\unity{}^{\otimes n}_2 = \unity_{2^n}$) to simplify the calculations and reduce overhead. 
+
+        Where possible, robust type-hinting has also been added to the code. This way, code could be more easily be verfied, and it would be easier for another person to follow the logic in the code. 
+
+    \subsection{Main Code}
+        The main code that does the calculation is contained in \texttt{src/main.py} in the form of a \inpycode{Lattice} class and the function \inpycode{condensate_frac()}.
+
+        The \inpycode{Lattice} class provides the wrapper for a wheel lattice with a given number of lattice sites $L$ in the ring. It contains the methods for building the Hamiltonian in the following bases:
+        \begin{itemize}
+            \item Operator-valued vector basis (\autoref{sec:a}, Problem 1(a)): 
+
+            $\text{\inpycode{lattice.build_hamiltonian_manual(t, s)}} \rightarrow \matrixx{H}_\odot = \text{\inpycode{lattice.hamiltonian["manual"]}}$
+            
+            \item Fock state basis of the tensor-product Hilbert space (\autoref{sec:b}, Problem 1(b)): 
+            
+            $\text{\inpycode{lattice.build_hamiltonian_ed(t, s)}} \rightarrow \operatorx{H}_\odot = \text{\inpycode{lattice.hamiltonian["exact"]}}$
+        \end{itemize}
+
+        To obtain the spectrum as a function of the relative coupling $s/t$, we use the function \inpycode{spectrum(type_)}, where \inpycode{type_ = "exact" | "manual" }. In this case, it makes sense to set $t = 1$ and then simply loop over $s/t$  values (\inpycode{s_t[]}), i.e. $s$ is in units of $t$. In each step, we build the Hamiltonian$$\text{\inpycode{lattice.build_hamiltonian_*(t = 1, s = s_t[i])}}$$ and calculate the desired eigenvalues using the helper functions provided by the \inpycode{(HBFock)Operator}. The eigenvalues are then saved as a CSV file.
+
+        Here, when instantiating the \inpycode{Lattice} class, we have the choice of representing the Hamiltonians either as sparse or dense matrices. While using sparse matrices may be faster, we are unable to extract all the eigenvalues of the matrix due to the ARPACK implementation of the eigensolver \cite{lehoucqARPACKUsersGuide1997}. As a result, we only extract the $N-1$ largest eigenvalues (in terms of magnitude, i.e. $-1 > 0.5$) of the $N \times N$ matrix, which should be sufficient for our purposes. This corresponds to the mode \texttt{LM} in \texttt{scipy.linalg.sparse}'s eigenvalue function(s). To extract all the eigenvalues, packages such as FILTLAN \cite{fangFilteredLanczosProcedure2012} could be used instead.
+
+        For each given $L$, the condensate fraction is then calculated using the \inpycode{condensate_frac()} function. Initially, this particular function was separated out from the \inpycode{Lattice} class as it looped over a sequence of $L$'s, $L \in \natzahl$, $L \geq 2$, and calculated the condensate fraction for each $L$. However, we realized that since we did not know how long each iteration would take, it would make more sense for \inpycode{condensate_frac()} to calculate each $L$ separately and save the intermediate data. This way, we could interrupt the running code at any time and retain the results that have already been calculated. Due to time constraints, this function was not rewritten to be a part of the \inpycode{Lattice} class.
+
+        For the calculation of the condensate fraction, using sparse matrices resulted in some artefacts in the results. We thus decided to only use dense matrices for the calculation in problem 1(d) (\autoref{sec:d}). 
+
+        % np.power(10, np.linspace(start=-2, stop=1, num=112))
+        In our final implementation, we used $S = 112$ equidistant samples between $s/t = 10^{-2}$ and $s/t = 10^{1}$ on the logarithmic scale to calculate the spectrum as a function of the relative coupling, and we used $S = 256$ equidistant samples between $s/t = 10^{-3}$ and $s/t = 10^{3}$ on the logarithmic scale to calculate the condensate fraction. 
+
+    \subsection{Parallelisation}
+        \label{sec:parallelisation}
+        As an embarrassingly (or pleasingly) parallel task, the calculation of the eigensystem for different $s/t$ values was parallelized with the help of \texttt{mpi4py}. In this case, our \inpycode{s_t[]} array was split into \texttt{NTasks} equal chucks and then distributed. Each node then did its own calculation for its own set of $s/t$ values before all the results are gathered again back to the root node. 
+
+        The root node then does the rest of the processing before saving the results into a CSV file. 
+
+        Initially, a contingent of \texttt{NTasks} $ = 50$ using the \texttt{cip} cluster was planned. However, we kept encountering the following error:
+        \begin{minted}[breaklines,autogobble,frame=leftline,framesep=10pt]{text}
+        srun: fatal: SLURM_MEM_PER_CPU, SLURM_MEM_PER_GPU, SLURM_MEM_PER_NODE are mutually exclusive
+        \end{minted}
+        which we were unable to resolve on our end. We postulate that if we managed to be lucky enough for the job to be assigned to a single computing node, this problem would resolve itself. This was however difficult to test with \texttt{NTasks} $ = 50$, since every time we requested a job, it ran across multiple nodes. There was just one MPI successful run on the cluster with \texttt{NTasks} $ = 8$ and explicitly requesting for \texttt{cip-cl-compute7}. This job managed to calculate the condensation fraction for $L = 2$ to $L = 10$ in a little over 2 hours\footnote{The job script for this job is available under \texttt{src/run\_cluster\_mpi.sh}.}. In comparison, it took about approximately 30 minutes on our local desktop machine with \texttt{NTASKS} $= 16$.
+        
+        We therefore came to the conclusion that while we could reduce \texttt{NTASKS} for running on the cluster, the cluster does not actually offer any benefits over using our own desktop PC. It was decided that the parallelised code will then be run on a local desktop PC instead of the cluster. For use on the cluster, it is recommended to just run the "single thread" version without parallelisation using MPI.
+    
+    \subsection{Running the code}
+
+        The code is strictly split into data acquisition and data processing. The data acquisition is covered in \texttt{src/main.py}, which is separately controlled by \texttt{src/run.py} and \texttt{src/run\_cluster.py}. The latter is meant to run the data acquisition on the cluster, while the first was designed to run the data acquisition on a private desktop. This decision was made due to the problems with running the MPI parallelization on the cluster as explained in the section \ref{sec:parallelisation} above. 
+
+        Running the data acquisition with or without MPI amounts to passing \inpycode{mpi = True | False} to the \texttt{Lattice} class or the \inpycode{condensate_frac()} function. 
+
+        The data is then stored in separate \text{.csv} files in the data folder and manually moved to new subfolders to differentiate between runs. 
+
+        There is no need for manual interaction with \texttt{main.py}, only with the file \texttt{run.py} should be used to adjust which data to gather and for which $L$'s. This is exemplified in the snippet below for a full MPI data acquisition run on a local desktop. (via \texttt{run.py})
+
+        \begin{minted}
+        [linenos,breaklines,autogobble,frame=leftline,framesep=10pt]{bash}
+        for L in range(2,12):
+            lattice = Lattice(L, "sparse", mpi = True)
+            lattice.spectrum("manual")
+            lattice.spectrum("exact")
+            condensate_frac(L, matrix_type = "dense", mpi = True)
+        \end{minted}
+
+        Running the file with MPI amounts to calling \intermcode{mpiexec -n $NUM_NODES python3 run.py}, where \texttt{run.py} can be called in the usual way for a non MPI run (note that the arguments in \texttt{run.py} need to be adjusted).
+
+        The data processing is purely based on the \texttt{data\_processing.py} file, which includes three functions, \inpycode{plot_manual()}, \inpycode{plot_exact()} and \inpycode{plot_cf()}. These take care of the plots for Problems a), c) and d) in order, i.e. running the data processing file as provided below will evaluate all data.
+
+        \begin{minted}[linenos,breaklines,autogobble,frame=leftline,framesep=10pt]{bash}
+        if __name__ == "__main__":
+            plot_manual()
+            plot_exact(manual_subset = False)
+            plot_exact(manual_subset = True)
+            plt_cf()
+        \end{minted}
+
+        The first two functions will create a plot each in the plots folder that contains 10 subplots, for system sizes ranging from $L=2$ to $L=11$. The last function will create a plot with two subplots that show the condensation fraction separately for even and odd $L$. 
+
+        The argument \inpycode{manual_subset} processes the same data if set to \inpycode{True}, but only plots the first 2 subplots. This is favorable because the range of the data for $L = 2$ and $L=3$ are much smaller than that of larger system sizes. This affords a better resolution to the plot.
+
+        Therefore, the only manual interaction with the \texttt{data\_processing.py} file needed is the modification of the filepaths to change which folders are targeted to draw data from.
+
+        \texttt{python3 data\_processing.py} can be called in the usual way since there is no MPI interaction from this point on.
+
+    \subsection{Runtimes}
+        Since running MPI parallelised on the cluster did not work, the fastest runtime was achieved on a private desktop. Naturally, the data acquisition is the crucial step in terms of runtime.
+
+        For the largest $L=11$ ($12$ lattice sites) run, the full runtime for data acquisition amounted to about $6$ hours, where $5$ of those were dedicated to the $L=11$ case. Our estimations put the $L=12$ case to add another $35-40$ hours to this, making this an unreasonable goal for a non-parallelised cluster run.
+        
+%     TODOs:
+% \begin{itemize}
+%     \item Bundles observation, eigenvalue crossings -> Limitation
+%     % \item Structure of the code
+%     % \item MPI/Parallelization
+%     % \item implementation of sparse matrices
+%     \item interpretation of (d)
+%     \item How we obtained the data, and how long the run took with MPI
+%     % \item Tests for expanding and fock
+%     \item verbessung -> Jordon Wigner transformation
+%     \item Uncomment the run.py
+%     \item make a cluster run.py
+%     \item last step took 4 hrs, would not be able to complete
+% \end{itemize}
